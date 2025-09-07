@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "即刻笔记导出助手",
+  "version": "1.0",
+  "description": "一键导出指定即刻博主的所有笔记到CSV文件。",
+  "permissions": [
+    "storage",
+    "downloads",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://web.okjike.com/u/*",
+    "https://api.ruguoapp.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

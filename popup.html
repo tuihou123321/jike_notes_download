@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>即刻笔记导出助手</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="icons/icon48.png" alt="icon" class="logo">
+            <h3>即刻笔记导出助手</h3>
+        </div>
+        <div class="options">
+            <label class="checkbox-container">
+                <input type="checkbox" id="include-images">
+                <span class="checkmark"></span>
+                爬取图片链接
+            </label>
+        </div>
+        <button id="start-button" class="button">开始爬取</button>
+        <div id="status" class="status-text">准备就绪</div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
