@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "即刻笔记导出助手",
+  "name": "佐老板即刻笔记导出助手",
   "version": "1.0",
   "description": "一键导出指定即刻博主的所有笔记到CSV文件。",
   "permissions": [
@@ -9,8 +9,9 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://web.okjike.com/u/*",
-    "https://api.ruguoapp.com/*"
+    "https://web.okjike.com/*",
+    "https://api.ruguoapp.com/*",
+    "*://*/*"
   ],
   "action": {
     "default_popup": "popup.html",

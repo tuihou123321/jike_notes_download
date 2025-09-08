@@ -2,14 +2,14 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>即刻笔记导出助手</title>
+    <title>佐老板即刻笔记导出助手</title>
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
             <img src="icons/icon48.png" alt="icon" class="logo">
-            <h3>即刻笔记导出助手</h3>
+            <h3>佐老板即刻笔记导出助手</h3>
         </div>
         <div class="options">
             <label class="checkbox-container">
@@ -18,6 +18,16 @@
                 爬取图片链接
             </label>
         </div>
+        
+        <div class="activation-section">
+            <input type="text" id="activation-code" placeholder="请输入激活码" class="activation-input">
+            <button id="activate-button" class="button secondary">激活</button>
+            <div id="activation-status" class="activation-status">未激活 (限制60条)</div>
+        </div>
+        
+        <button id="go-jike-button" class="button secondary" style="display: none;">去即刻操作</button>
+        <button id="open-user-page-button" class="button secondary" style="display: none;">打开用户主页</button>
+        <button id="help-button" class="button secondary">获取激活码</button>
         <button id="start-button" class="button">开始爬取</button>
         <div id="status" class="status-text">准备就绪</div>
     </div>

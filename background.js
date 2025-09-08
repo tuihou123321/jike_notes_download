@@ -7,8 +7,8 @@ let crawlInProgress = false;
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'start_crawl' && !crawlInProgress) {
         crawlInProgress = true;
-        const { username, token, includeImages } = message.payload;
-        fetchAllPages(username, token, includeImages)
+        const { username, token, includeImages, isActivated, isCollection } = message.payload;
+        fetchAllPages(username, token, includeImages, isActivated, isCollection)
             .catch(err => console.error("爬取失败:", err))
             .finally(() => {
                 crawlInProgress = false;
@@ -19,7 +19,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-async function fetchAllPages(username, token, includeImages) {
+async function fetchAllPages(username, token, includeImages, isActivated, isCollection) {
     let allPosts = [];
     let loadMoreKey = null;
     let page = 1;
@@ -33,36 +33,133 @@ async function fetchAllPages(username, token, includeImages) {
     do {
         try {
             updateStatus(`正在爬取第 ${page} 页...`);
-            const response = await fetch('https://api.ruguoapp.com/1.0/personalUpdate/single', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-jike-access-token': token,
-                },
-                body: JSON.stringify({
+            
+            // 根据页面类型选择不同的API端点和请求体
+            let apiUrl, requestBody;
+            if (isCollection) {
+                // 收藏页面使用正确的收藏API
+                apiUrl = 'https://api.ruguoapp.com/1.0/collections/list';
+                requestBody = {
+                    limit: 20
+                };
+                // 收藏API如果支持分页，添加loadMoreKey
+                if (loadMoreKey) {
+                    requestBody.loadMoreKey = loadMoreKey;
+                }
+            } else {
+                // 普通个人页面
+                apiUrl = 'https://api.ruguoapp.com/1.0/personalUpdate/single';
+                requestBody = {
                     username: username,
                     limit: 20,
                     loadMoreKey: loadMoreKey,
-                }),
+                };
+            }
+            
+            const headers = {
+                'Content-Type': 'application/json',
+                'x-jike-access-token': token,
+            };
+            
+            // 为收藏API添加额外的请求头
+            if (isCollection) {
+                headers['accept'] = 'application/json, text/plain, */*';
+                headers['origin'] = 'https://web.okjike.com';
+                headers['sec-fetch-dest'] = 'empty';
+                headers['sec-fetch-mode'] = 'cors';
+                headers['sec-fetch-site'] = 'cross-site';
+            }
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
-                throw new Error(`API 请求失败，状态码: ${response.status}`);
+                const responseText = await response.text();
+                console.error(`API请求失败详情:`, {
+                    status: response.status,
+                    url: apiUrl,
+                    body: requestBody,
+                    responseText: responseText,
+                    isCollection: isCollection,
+                    username: username
+                });
+                
+                // 如果是收藏页面404，尝试其他API端点
+                if (isCollection && response.status === 404) {
+                    console.log('收藏API失败，尝试使用personalUpdate API');
+                    // 降级到使用普通API，但可能数据不对
+                    throw new Error(`收藏API不可用 (${response.status})，请检查API端点是否正确`);
+                }
+                
+                throw new Error(`API 请求失败，状态码: ${response.status}${isCollection ? ' (收藏页面)' : ' (普通页面)'}`);
             }
 
             const result = await response.json();
-            if (!result.success || !result.data || result.data.length === 0) {
-                if (page === 1) throw new Error('API未返回任何数据');
+            
+            // 添加调试日志查看API响应结构
+            if (isCollection && page === 1) {
+                console.log('收藏API响应结构:', JSON.stringify(result, null, 2));
+                console.log('响应字段:', Object.keys(result));
+                if (result.data) {
+                    console.log('data字段类型:', typeof result.data, '长度:', result.data?.length);
+                }
+            }
+            
+            // 收藏API和个人动态API的响应结构不同
+            let hasData, posts, nextLoadMoreKey;
+            
+            if (isCollection) {
+                // 收藏API: 直接返回 {data: [...], loadMoreKey: {...}}
+                hasData = result.data && result.data.length > 0;
+                posts = result.data || [];
+                nextLoadMoreKey = result.loadMoreKey;
+            } else {
+                // 个人动态API: 返回 {success: true, data: [...], loadMoreKey: "..."}
+                hasData = result.success && result.data && result.data.length > 0;
+                posts = result.data || [];
+                nextLoadMoreKey = result.loadMoreKey;
+            }
+            
+            if (!hasData) {
+                if (page === 1) {
+                    console.error('API响应详情:', result);
+                    throw new Error(`API未返回任何数据 - ${isCollection ? 'collection' : 'personal'} API`);
+                }
                 // If not the first page, it's a normal end of data.
                 loadMoreKey = null; 
             } else {
-                 if (page === 1) {
-                    authorName = result.data[0]?.user?.screenName || username;
+                if (page === 1 && posts.length > 0) {
+                    // 获取作者名称，收藏页面显示收藏者名称
+                    if (isCollection) {
+                        authorName = `收藏_${username}`;
+                    } else {
+                        authorName = posts[0]?.user?.screenName || username;
+                    }
                 }
-                allPosts = allPosts.concat(result.data);
-                loadMoreKey = result.loadMoreKey;
+                
+                // 如果未激活，检查是否会超过60条限制
+                if (!isActivated && allPosts.length + posts.length > 60) {
+                    const remainingSlots = 60 - allPosts.length;
+                    allPosts = allPosts.concat(posts.slice(0, remainingSlots));
+                    updateStatus(`未激活用户限制60条笔记，已获取 ${allPosts.length} 条笔记`);
+                    break;
+                } else {
+                    allPosts = allPosts.concat(posts);
+                    
+                    // 如果未激活且正好达到60条，也要停止
+                    if (!isActivated && allPosts.length >= 60) {
+                        updateStatus(`未激活用户限制60条笔记，已获取 ${allPosts.length} 条笔记`);
+                        break;
+                    }
+                }
+                
+                loadMoreKey = nextLoadMoreKey;
                 page++;
-                updateStatus(`已获取 ${allPosts.length} 条笔记...`);
+                const pageType = isCollection ? '收藏' : '笔记';
+                updateStatus(`已获取 ${allPosts.length} 条${pageType}...${!isActivated ? ' (未激活限制60条)' : ''}`);
             }
 
         } catch (error) {
@@ -73,11 +170,14 @@ async function fetchAllPages(username, token, includeImages) {
     } while (loadMoreKey);
 
     if (allPosts.length > 0) {
-        updateStatus(`爬取完成，共 ${allPosts.length} 条笔记！`);
+        const pageType = isCollection ? '收藏' : '笔记';
+        const statusMessage = `爬取完成，共 ${allPosts.length} 条${pageType}！${!isActivated && allPosts.length >= 60 ? ' (未激活限制)' : ''}`;
+        updateStatus(statusMessage);
         generateCSV(allPosts, includeImages);
         updateStatus('数据处理完成，可以下载了！', true);
     } else {
-        updateStatus('未找到任何笔记或数据为空。', false, true);
+        const pageType = isCollection ? '收藏' : '笔记';
+        updateStatus(`未找到任何${pageType}或数据为空。`, false, true);
     }
 }
 
